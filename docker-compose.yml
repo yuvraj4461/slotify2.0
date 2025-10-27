@@ -1,0 +1,180 @@
+# docker-compose.yml - Complete Slotify Stack
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: slotify-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: slotifySecurePass123
+      MONGO_INITDB_DATABASE: slotify
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - slotify-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/slotify --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # Redis Cache (Optional - for better performance)
+  redis:
+    image: redis:7-alpine
+    container_name: slotify-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - slotify-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: slotify-backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Server Config
+      NODE_ENV: production
+      PORT: 3000
+      
+      # Database
+      MONGODB_URI: mongodb://admin:slotifySecurePass123@mongodb:27017/slotify?authSource=admin
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
+      # JWT Secret
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_key_change_this_in_production}
+      
+      # Twilio (Optional)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      
+      # Firebase (Optional)
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY}
+      
+      # Admin
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@slotify.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeThisPassword123}
+      
+      # Frontend URL
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - slotify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx Web Server (serves frontend and proxies API)
+  nginx:
+    image: nginx:alpine
+    container_name: slotify-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - slotify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MongoDB Express (Optional - Database GUI)
+  mongo-express:
+    image: mongo-express
+    container_name: slotify-mongo-express
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: slotifySecurePass123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:slotifySecurePass123@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: slotifyAdmin123
+    ports:
+      - "8081:8081"
+    networks:
+      - slotify-network
+    profiles:
+      - dev
+
+  # Backup Service (runs daily backups)
+  backup:
+    image: mongo:6.0
+    container_name: slotify-backup
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backups:/backups
+    environment:
+      MONGO_HOST: mongodb
+      MONGO_USER: admin
+      MONGO_PASSWORD: slotifySecurePass123
+    command: >
+      sh -c "while true; do
+        echo 'Starting backup...';
+        mongodump --host mongodb --username admin --password slotifySecurePass123 --authenticationDatabase admin --db slotify --out /backups/backup-$$(date +%Y%m%d-%H%M%S);
+        echo 'Backup completed';
+        sleep 86400;
+      done"
+    networks:
+      - slotify-network
+    profiles:
+      - production
+
+networks:
+  slotify-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+# Usage:
+# Development: docker-compose --profile dev up
+# Production: docker-compose --profile production up -d
+# Stop: docker-compose down
+# View logs: docker-compose logs -f [service-name]
+# Backup: docker-compose exec backup sh -c "mongodump..."
