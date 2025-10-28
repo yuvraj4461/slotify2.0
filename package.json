@@ -38,6 +38,7 @@
     "multer": "^2.0.2",
     "natural": "^8.1.0",
     "node-cron": "^4.2.1",
+    "react-qr-reader": "^3.0.0-beta-1",
     "redis": "^5.9.0",
     "socket.io": "^4.8.1",
     "tesseract.js": "^6.0.1",
