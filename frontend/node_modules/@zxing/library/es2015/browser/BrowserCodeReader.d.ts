@@ -331,6 +331,7 @@ export declare class BrowserCodeReader {
      * Gets the BinaryBitmap for ya! (and decodes it)
      */
     decode(element: HTMLVisualMediaElement): Result;
+    private _isHTMLVideoElement;
     /**
      * Creates a binaryBitmap based in some image source.
      *
@@ -346,9 +347,31 @@ export declare class BrowserCodeReader {
      */
     protected getCaptureCanvas(mediaElement?: HTMLVisualMediaElement): HTMLCanvasElement;
     /**
+      * Overwriting this allows you to manipulate the next frame in anyway you want before decode.
+      */
+    drawFrameOnCanvas(srcElement: HTMLVideoElement, dimensions?: {
+        sx: number;
+        sy: number;
+        sWidth: number;
+        sHeight: number;
+        dx: number;
+        dy: number;
+        dWidth: number;
+        dHeight: number;
+    }, canvasElementContext?: CanvasRenderingContext2D): void;
+    /**
      * Ovewriting this allows you to manipulate the snapshot image in anyway you want before decode.
      */
-    drawImageOnCanvas(canvasElementContext: CanvasRenderingContext2D, srcElement: HTMLVisualMediaElement): void;
+    drawImageOnCanvas(srcElement: HTMLImageElement, dimensions?: {
+        sx: number;
+        sy: number;
+        sWidth: number;
+        sHeight: number;
+        dx: number;
+        dy: number;
+        dWidth: number;
+        dHeight: number;
+    }, canvasElementContext?: CanvasRenderingContext2D): void;
     /**
      * Call the encapsulated readers decode
      */
