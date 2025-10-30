@@ -18,16 +18,16 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy requirements and install
-COPY ai_service/requirements.txt /app/requirements.txt
+COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy app source
-COPY ai_service/ /app/
+# Copy app source (everything in ai_service/)
+COPY . /app/
 
 # Expose port
 ENV PORT 8000
 EXPOSE 8000
 
-# Use gunicorn + uvicorn workers
+# Run Gunicorn with uvicorn workers
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
