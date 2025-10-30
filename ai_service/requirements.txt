@@ -5,6 +5,8 @@ pytesseract==0.3.10
 pillow==10.0.0
 python-multipart==0.0.6
 requests==2.31.0
-# add any other ML libs you need, e.g.
+opencv-python-headless==4.8.1.78
+# add other ML libs here if you actually use them, e.g.
 # scikit-learn==1.2.2
 # torch==2.2.0
+
